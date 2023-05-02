@@ -1,35 +1,70 @@
-import sys
+import tkinter as tk
+from tkinter import filedialog
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.figure import Figure
 import seaborn as sns
 import pandas as pd
-import matplotlib.pyplot as plt
-from analysis import analyze_data_structures
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+import analysis
 
-class MainWindow(QMainWindow):
-    def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
+class Application(tk.Tk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("Data Structure Analysis")
 
         # Set up the layout
-        widget = QWidget(self)
-        self.setCentralWidget(widget)
-        layout = QVBoxLayout()
-        widget.setLayout(layout)
+        self.create_widgets()
 
-        # Create the seaborn plot
-        data = analyze_data_structures()
-        df = pd.DataFrame(data)
-        plot_data = df.melt(var_name='Operation', value_name='Time (s)')
+    def create_widgets(self):
+        self.dataset_length_label = tk.Label(self, text="Dataset Length:")
+        self.dataset_length_label.grid(row=0, column=0)
 
-        fig, ax = plt.subplots()
+        self.dataset_length_var = tk.IntVar()
+        self.dataset_length_entry = tk.Entry(self, textvariable=self.dataset_length_var)
+        self.dataset_length_entry.grid(row=0, column=1)
+
+        self.generate_dataset_button = tk.Button(self, text="Generate Dataset", command=self.generate_dataset)
+        self.generate_dataset_button.grid(row=1, column=0)
+
+        self.choose_dataset_button = tk.Button(self, text="Choose Dataset", command=self.choose_dataset)
+        self.choose_dataset_button.grid(row=1, column=1)
+
+        self.run_analysis_button = tk.Button(self, text="Run Analysis", command=self.run_analysis)
+        self.run_analysis_button.grid(row=2, column=0, columnspan=2)
+
+    def generate_dataset(self):
+        dataset_length = self.dataset_length_var.get()
+        if dataset_length > 0:
+            random_dataset, increasing_dataset, decreasing_dataset = analysis.create_datasets(dataset_length)
+            datasets = {'Random': random_dataset, 'Increasing': increasing_dataset, 'Decreasing': decreasing_dataset}
+            analysis.save_datasets_to_file(datasets)
+
+    def choose_dataset(self):
+        dataset_file = filedialog.askopenfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
+        if dataset_file:
+            self.datasets = analysis.load_datasets_from_file(dataset_file)
+    
+    def run_analysis(self):
+        dataset_length = self.dataset_length_var.get()
+        if dataset_length > 0:
+            results = analysis.analyze_data_structures(dataset_length)
+            self.plot_results(results)
+
+    def plot_results(self, results):
+        data = pd.DataFrame(results)
+        plot_data = data.melt(var_name='Operation', value_name='Time (s)')
+
+        fig = Figure(figsize=(6, 4), dpi=100)
+        ax = fig.add_subplot(111)
         sns.barplot(x='Dataset', y='Time (s)', hue='Data Structure', data=plot_data, ax=ax)
 
-        # Add the plot to the layout
-        canvas = FigureCanvas(fig)
-        layout.addWidget(canvas)
+        if hasattr(self, 'canvas'):
+            self.canvas.get_tk_widget().destroy()
 
-if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    mainWin = MainWindow()
-    mainWin.show()
-    sys.exit(app.exec_())
+        self.canvas = FigureCanvasTkAgg(fig, master=self)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=3, column=0, columnspan=2)
+
+if __name__ == "__main__":
+    app = Application()
+    app.mainloop()
